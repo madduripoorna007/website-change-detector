@@ -1,0 +1,21 @@
+# Adds the noisy demo store and opens it (only it) through the SSRF guard. For local testing:
+#   docker compose -f docker-compose.yml -f docker-compose.demo.yml up --build
+#   then add http://demo:4000/product in the dashboard, or run the end-to-end test:
+#   docker compose -f docker-compose.yml -f docker-compose.demo.yml exec web node scripts/e2e.js http://localhost:3000 http://demo:4000
+services:
+  demo:
+    image: website-change-detector
+    pull_policy: never
+    command: node demo/demo-site.js
+    healthcheck: { disable: true }
+    depends_on:
+      web: { condition: service_healthy }
+  web:
+    environment:
+      PRIVATE_HOST_ALLOWLIST: demo:4000
+      MANUAL_CHECK_COOLDOWN_MS: "2000"
+      PER_DOMAIN_GAP_MS: "500"
+  worker:
+    environment:
+      PRIVATE_HOST_ALLOWLIST: demo:4000
+      PER_DOMAIN_GAP_MS: "500"
