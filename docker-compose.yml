@@ -1,0 +1,52 @@
+# Full stack:  cp .env.example .env  &&  docker compose up --build   ->  http://localhost:3000
+services:
+  mongo:
+    image: mongo:7
+    volumes: [mongo:/data/db]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  web:
+    build: .
+    image: website-change-detector
+    command: node src/server.js
+    ports: ["3000:3000"]
+    env_file: .env
+    environment:
+      MONGO_URL: mongodb://mongo:27017/changedetector
+      REDIS_URL: redis://redis:6379
+      DATA_DIR: /app/data
+    volumes: [data:/app/data]
+    restart: unless-stopped
+    depends_on:
+      mongo: { condition: service_healthy }
+      redis: { condition: service_healthy }
+  worker:
+    image: website-change-detector
+    pull_policy: never
+    command: node src/worker.js
+    env_file: .env
+    environment:
+      MONGO_URL: mongodb://mongo:27017/changedetector
+      REDIS_URL: redis://redis:6379
+      DATA_DIR: /app/data
+    volumes: [data:/app/data]
+    shm_size: 512mb       # Chromium needs more shared memory than Docker's 64 MB default
+    restart: unless-stopped
+    healthcheck: { disable: true }
+    depends_on:
+      web: { condition: service_healthy }   # web builds the image and is up first
+volumes:
+  mongo:
+  data:
